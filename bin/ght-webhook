@@ -1,0 +1,68 @@
+# (c) 2016 - onwards Georgios Gousios <gousiosg@gmail.com>
+#
+# MIT licensed, see LICENSE in top level dir
+#
+# Minimal GitHub webhook for use with GHTorrent.
+
+#!/usr/bin/env ruby
+
+require 'sinatra'
+require 'bunny'
+require 'gtorrent'
+
+class GHTWebHook < Sinatra::Base
+
+  include GHTorrent::Settings
+  include GHTorrent::Persister
+
+  def persister
+    @persister ||= connect(:mongo, @settings)
+    @persister
+  end
+
+  def rabbit
+    if exchange.nil?
+      conn = Bunny.new(:host => config(:amqp_host),
+                       :port => config(:amqp_port),
+                       :username => config(:amqp_username),
+                       :password => config(:amqp_password))
+      conn.start
+
+      ch = conn.create_channel
+      debug "Connection to #{config(:amqp_host)} succeded"
+
+      exchange = ch.topic(config(:amqp_exchange), :durable => true,
+                          :auto_delete => false)
+    end
+    exchange
+  end
+
+  def settings
+    settings ||= YAML::load_file 'config.yaml'
+    settings
+  end
+
+  get '/' do
+    'ght-web-hook: use POST instead'
+  end
+
+  post '/' do
+    # Read and parse event
+    begin
+      event = JSON.parse(request.body.read)
+    rescue StandardError => e
+      halt 400, "Error parsing object #{request.body.read}"
+    end
+
+    key = "evt.#{event['type']}"
+
+    # Save to MongoDB, if it is not there yet
+    if persister.find(:events, {'id' => event['id']}).empty?
+      persister.store(:events, e)
+    end
+
+    # Publish to RabbitMQ
+    exchange.publish event['id'], :persistent => true, :routing_key => key
+  end
+
+end
