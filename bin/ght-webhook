@@ -10,6 +10,9 @@ require 'sinatra'
 require 'bunny'
 require 'mongo'
 require 'yaml'
+require 'json'
+
+Mongo::Logger.logger.level = Logger::WARN
 
 def config
   config = if ENV['CONFIG'].nil?
@@ -27,15 +30,16 @@ def config
 end
 
 configure do
-  db = Mongo::Connection.new(config['mongo']['host'],
-                             config['mongo']['port'])\
-                                    .db(config['mongo']['db'])
-
   unless config['mongo']['username'].nil?
-    db.authenticate(config['mongo']['username'],
-                        config['mongo']['password'])
+    db = Mongo::Client.new(["#{config['mongo']['host']}:#{config['mongo']['port']}"],
+                           :database => config['mongo']['db'])
+  else
+    db = Mongo::Client.new(["#{config['mongo']['host']}:#{config['mongo']['port']}"],
+                           :database => config['mongo']['db'],
+                           :user => config['mongo']['username'],
+                           :password => config['mongo']['password'])
   end
-  db.stats
+  db.database.collection_names
   STDERR.puts "Connection to MongoDB: #{config['amqp']['host']} succeded"
 
   set :mongo, db
@@ -70,8 +74,8 @@ post '/' do
   key = "evt.#{event['type']}"
 
   # Save to MongoDB, if it is not there yet
-  if settings.mongo.find(:events, {'id' => event['id']}).empty?
-    settings.mongo.store(:events, e)
+  if settings.mongo['events'].find('id' => event['id']).count == 0
+    settings.mongo['events'].insert_one(event)
   end
 
   # Publish to RabbitMQ
