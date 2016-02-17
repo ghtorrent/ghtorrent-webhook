@@ -11,44 +11,6 @@ require 'bunny'
 require 'mongo'
 require 'yaml'
 
-
-
-#
-# def persister
-#   $mongo ||= Proc.new {
-#
-#     $mongo = Mongo::Connection.new(config['mongo']['host'],
-#                           config['mongo']['port'])\
-#                                     .db(config['mongo']['db'])
-#
-#     unless config['mongo']['username'].nil?
-#       $mongo.authenticate(config['mongo']['username'],
-#                           config['mongo']['password'])
-#     end
-#     $mongo.stats
-#     STDERR.puts "Connection to MongoDB: #{config['amqp']['host']} succeded"
-#   }.call
-#
-#   $mongo
-# end
-#
-# def rabbit
-#   if @exchange.nil?
-#     conn = Bunny.new(:host => config['amqp']['host'],
-#                      :port => config['amqp']['port'],
-#                      :username => config['amqp']['username'],
-#                      :password => config['amqp']['password'])
-#     conn.start
-#
-#     ch = conn.create_channel
-#     STDERR.puts "Connection to RabbitMQ: #{config['amqp']['host']} succeded"
-#
-#     @exchange = ch.topic(config['amqp']['exchange'], :durable => true,
-#                         :auto_delete => false)
-#   end
-#   @exchange
-# end
-
 def config
   config = if ENV['CONFIG'].nil?
              if ARGV[0].nil?
