@@ -1,5 +1,6 @@
 source 'https://rubygems.org'
 
-gem 'sinartra'
+gem 'sinatra'
 gem 'bunny'
-gem 'ghtorrent'
+gem 'mongo', '~> 1.12', '>= 1.12.0'
+gem 'bson_ext', '~> 1.9', '>= 1.9.0'
