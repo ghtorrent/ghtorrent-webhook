@@ -1,16 +1,19 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env ruby                                                                                                                                           
 
-# (c) 2016 - onwards Georgios Gousios <gousiosg@gmail.com>
-#
-# MIT licensed, see LICENSE in top level dir
-#
-# Minimal GitHub webhook for use with GHTorrent.
+# (c) 2016 - onwards Georgios Gousios <gousiosg@gmail.com>                                                                                                    
+#                                                                                                                                                             
+# MIT licensed, see LICENSE in top level dir                                                                                                                  
+#                                                                                                                                                             
+# Minimal GitHub webhook for use with GHTorrent.                                                                                                              
 
 require 'sinatra'
 require 'bunny'
 require 'mongo'
 require 'yaml'
 require 'json'
+require_relative 'event_mapping.rb'
+
+include GHTorrentWebhook
 
 Mongo::Logger.logger.level = Logger::WARN
 
@@ -54,7 +57,7 @@ configure do
   STDERR.puts "Connection to RabbitMQ: #{config['amqp']['host']} succeded"
 
   @exchange = ch.topic(config['amqp']['exchange'], :durable => true,
-                       :auto_delete => false)
+		       :auto_delete => false)
 
   set :rabbit, @exchange
 end
@@ -64,20 +67,27 @@ get '/' do
 end
 
 post '/' do
-  # Read and parse event
+  # Read and parse event                                                                                                                                      
   begin
     event = JSON.parse(request.body.read)
+    converted_event, key_name = convert_json(event, request.env['HTTP_X_GITHUB_EVENT'])
   rescue StandardError => e
     halt 400, "Error parsing object #{request.body.read}"
   end
 
-  key = "evt.#{event['type']}"
-
-  # Save to MongoDB, if it is not there yet
-  if settings.mongo['events'].find('id' => event['id']).count == 0
-    settings.mongo['events'].insert_one(event)
+  if key_name == "unsupported"
+    STDERR.puts 'Received an unsupported event'
+    return
   end
 
-  # Publish to RabbitMQ
-  settings.rabbit.publish event['id'], :persistent => true, :routing_key => key
+  key = "evt." + key_name
+
+  # Save to MongoDB, if it is not there yet                                                                                                                   
+  if settings.mongo['events'].find('id' => converted_event['id']).count == 0
+    settings.mongo['events'].insert_one(converted_event)
+  end
+
+  # Publish to RabbitMQ                                                                                                                                       
+  settings.rabbit.publish converted_event['id'], :persistent => true, :routing_key => key
 end
+
